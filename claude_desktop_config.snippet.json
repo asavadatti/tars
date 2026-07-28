@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "tars": {
+      "command": "/Users/asavadatti/Documents/GitHub/tars/.venv/bin/python",
+      "args": ["-m", "tars.mcp_server"],
+      "env": {
+        "PYTHONPATH": "/Users/asavadatti/Documents/GitHub/tars/src",
+        "SSL_CERT_FILE": "/Users/asavadatti/.certs/cacert.pem",
+        "REQUESTS_CA_BUNDLE": "/Users/asavadatti/.certs/cacert.pem",
+        "TARS_RUBRIC": "/Users/asavadatti/Documents/GitHub/tars/rubrics/default.yaml",
+        "TARS_DB": "/Users/asavadatti/Documents/GitHub/tars/tars.db",
+        "TARS_ABCD": "/Users/asavadatti/Documents/GitHub/tars/data/abcd_v1.1.json",
+        "TARS_STUB": "0"
+      }
+    }
+  }
+}

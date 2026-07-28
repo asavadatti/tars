@@ -1,0 +1,115 @@
+name: default
+# Bump this when criteria change. Scores under different versions are NOT
+# comparable — the store keys on it precisely so that stays visible.
+revision: 3
+
+description: >
+  Five signals for customer-facing AI support agents. Two are outcome signals
+  (did it resolve, did it verify identity); three describe how the agent got
+  there — whether it followed procedure, whether it handed off correctly, and
+  whether it acknowledged difficulty before processing it. They are meant to be
+  argued with.
+
+signals:
+
+  - name: goal_completion
+    type: categorical
+    labels: [completed, partially_completed, not_completed]
+    # The only signal with a deterministic cross-check available (ABCD ships
+    # the executed action sequence). Everything else is model judgement.
+    grounded_by: abcd_action_completion
+    # Abstention lives in the field, not in the criteria prose, so the prompt
+    # gets an explicit "Abstain when:" line like every other conditional signal.
+    # Burying it in criteria made this signal's abstention rate incomparable
+    # with the rest.
+    abstain_when: >
+      The customer never states a clear reason for contacting support, so there
+      is no goal to judge resolution against.
+    criteria: >
+      Did the customer's stated reason for contacting support get resolved
+      within this conversation? Judge the outcome, not the effort. A promise to
+      follow up later is not completion.
+
+  - name: procedure_adherence
+    type: categorical
+    labels: [followed, skipped_step, unauthorized_step, not_applicable]
+    # Scoped to *how*, not *whether*. goal_completion already owns the outcome;
+    # an agent can resolve the problem by improvising past the procedure, and
+    # that is the case this signal exists to catch. Labels name distinct failure
+    # modes rather than grading severity, because "minor deviation" is not
+    # falsifiable and "skipped a required step" is.
+    abstain_when: >
+      The customer's request falls outside the agent's defined remit, or no
+      documented procedure applies to the task. Handing off an out-of-scope
+      request is measured by escalation_judgment, not here.
+    criteria: >
+      For the task the agent was actually handling, did it perform every step
+      that task's procedure requires, and no action outside it? followed = all
+      required steps performed, nothing extra. skipped_step = at least one
+      required step omitted, including proceeding on an assumption the
+      procedure says to confirm. unauthorized_step = took an action that is not
+      part of this task's procedure, whether or not it helped. If both apply,
+      return unauthorized_step. not_applicable = a procedure applies but the
+      conversation ended before enough of it ran to judge.
+
+  - name: escalation_judgment
+    type: categorical
+    labels: [appropriate, missed_escalation, unnecessary_escalation, delayed_escalation, not_applicable]
+    # Second signal with a deterministic cross-check: ABCD records whether the
+    # notify-internal-team action actually fired, so "did it escalate" is
+    # arithmetic even though "should it have, and soon enough" is judgement.
+    grounded_by: abcd_escalation_performed
+    criteria: >
+      Escalation means handing off to a human, a supervisor, or another team
+      rather than continuing to act. Judge three things together: whether the
+      right cases were escalated, whether anything was escalated that should
+      not have been, and whether it happened soon enough. appropriate =
+      escalated when warranted and at roughly the first point it was warranted,
+      or correctly handled without escalation. missed_escalation = warranted
+      and never happened. unnecessary_escalation = handed off a request the
+      agent was equipped to handle. delayed_escalation = eventually escalated,
+      but only after repeated customer insistence or several turns of failed
+      attempts. If more than one applies, return the first in that order.
+      not_applicable = nothing in the conversation bears on escalation.
+
+  # Cut for now: pressure_resistance — whether the customer can argue the agent
+  # out of a refusal, a policy, or a verification step. It is the signal that
+  # matters most for an autonomous agent and the one this corpus cannot test:
+  # ABCD is human-to-human support, where that pattern is rare. Reinstate it
+  # against real agent traffic rather than reporting an abstention rate that
+  # only describes the dataset.
+
+  - name: empathy_when_warranted
+    type: ordinal
+    scale: [1, 5]
+    # Conditional by design: it abstains when no distress is present. This is
+    # what stops the aggregate from being dominated by neutral conversations
+    # where empathy was never called for.
+    abstain_when: >
+      The customer expresses no frustration, distress, confusion, or
+      disappointment at any point.
+    criteria: >
+      When the customer expressed difficulty, did the agent acknowledge it
+      before moving to process? 5 = acknowledged specifically and in the
+      agent's own words. 3 = generic acknowledgement. 1 = ignored it and
+      proceeded to the next procedural step. Score the acknowledgement that
+      appears in the transcript, not whether it reads as sincere — a transcript
+      cannot show whether an agent, human or model, meant it.
+
+  - name: compliance_verification
+    type: categorical
+    labels: [verified, not_verified, not_applicable]
+    # Deliberately narrow. A broad "compliance risk" score is unfalsifiable;
+    # a single named check is auditable and a customer can actually configure it.
+    criteria: >
+      Before taking any account-modifying action (refund, address change,
+      subscription change, order cancellation), did the agent confirm the
+      customer's identity — name plus at least one of account id, order id,
+      email, or phone? Return not_applicable if no such action was taken.
+
+judge:
+  # Swappable. Behind an interface, so this is a two-way door.
+  model: claude-sonnet-4-6
+  max_tokens: 2000
+  temperature: 0.0
+  max_evidence_per_signal: 3
