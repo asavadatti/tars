@@ -129,60 +129,28 @@ signal that claims otherwise is not falsifiable.
 an account-modifying action. A broad "compliance risk" score is unfalsifiable. A
 single named check is auditable, and a customer can configure it.
 
-Cut, and worth saying why: `pressure_resistance` — whether the customer can argue
-the agent out of a refusal, a policy, or a verification step. It is the signal
-that matters most for an autonomous agent and the one this corpus cannot test,
-because ABCD is human-to-human support where that pattern is rare. Reporting an
-abstention rate that only describes the dataset would be worse than not shipping
-it. It belongs against real agent traffic.
+Future work for Human-AI interaction: `pressure_resistance` — whether the customer can argue
+the agent out of a refusal, a policy, or a verification step
 
-A note on the corpus generally: `escalation_judgment` also abstains more often on
-ABCD than it would on real agent traffic, since only some subflows map onto a
-documented action sequence. That is the honest result, not a gap to paper over.
+Also note that `escalation_judgment` abstains more often on ABCD than it would on real agent 
+traffic, since only some subflows map onto a documented action sequence
 
-## What is expensive to change
-
-The result envelope, once anything reads it. Adding fields is free; renaming is
-not.
-
-The provenance tuple. A score carrying no `rubric_version` and `model_version` is
-uninterpretable and cannot be backfilled. The store's primary key is
-`(conversation_id, rubric_version, model_version)` so that this stays visible
-rather than becoming a convention people forget.
-
-Mandatory evidence. If evidence were optional, some share of records would never
-have it, and those records could never be audited.
-
-Async job semantics. Sync to async breaks every caller; async to sync is trivial.
-The demo does not need a job queue and production cannot work without one.
-
-Scoring at conversation grain with turn-indexed evidence. Turn-level scoring
-cannot be recovered later without re-running everything, and evidence pointers
-give attribution without paying for it.
 
 ## What is cheap to change
 
-The model, behind `judge.Judge`. Prompt wording, since every result is
-version-stamped and re-runnable. Storage, behind `store.Store`. Flagging
-thresholds, which are applied at read time in `store.query` rather than baked in
-at write time. Adding an adapter, which touches nothing downstream.
+Adding new data sources: Adding an adapter is straightforward as it does not touch 
+anything downstream
 
-And the signals themselves. Which five metrics to compute is the most contestable
-decision here and the one least likely to survive contact with a real QA team, so
-the rubric is a YAML file rather than code. That only works if re-scoring is
-cheap, which is what the idempotency key on
-`(conversation_id, rubric_version, model_version)` buys: re-running a corpus under
-an edited rubric is a cache miss on exactly the records that changed.
+The metrics we are using to grade conversations on is flexible. The rubric is inside 
+a YAML file and can be easily updated. Once the file is changed it is hashed again 
+as the new metrics are not comparable to the previous ones. The conversations are keyed on 
+`(conversation_id, rubric_version, model_version)` and older ones need to be scored again
 
-The rubric version includes a content hash of the file, so editing criteria text
-without bumping the revision still produces a new version. Otherwise a trendline
-drawn across the edit would be silently wrong.
-
-## Deliberately not built
+## Out of Scope
 
 Auth, multi-tenancy, rate limiting. Fine-tuning or any trained classifier.
 Streaming or real-time scoring. A UI. Voice transcripts, which are the input this
-would degrade on hardest: ASR output has no sentence punctuation, imperfect
+could degrade on: ASR output has no sentence punctuation, imperfect
 diarization, and word error rates that concentrate on the domain nouns the
 compliance check depends on.
 
@@ -190,6 +158,9 @@ Judge reliability is measured but not yet established. `/v1/metrics` reports
 abstention and confidence, which describe the judge's behaviour. It does not
 report variance across repeated runs of the same conversation, which is what
 would tell you whether a score of 2 is stable. That is the first thing to add.
+
+We are grading the conversations not the agent. There are no agent identifiers in the data 
+so we cannot aggregate across conversations
 
 ## Tests
 
