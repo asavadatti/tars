@@ -211,13 +211,16 @@ is the system saying it has nothing falsifiable to say.
 ## 6. Filter, override, and show the metrics
 
 ```bash
-curl -s 'localhost:8000/v1/results?signal=procedure_adherence&label=skipped_step' | jq -r '.[].conversation_id'
+curl -s 'localhost:8000/v1/results?signal=procedure_adherence&label=skipped_step' | jq -r '.count, (.results[].conversation_id)'
 ```
 
-Returns two conversations from the cached twenty. Nothing in this corpus scored
-`compliance_verification: not_verified` — worth saying so rather than hunting
-for a hit live. A filter that legitimately returns nothing is not a broken
-filter, and on a 20-conversation sample most labels are empty.
+Returns four conversations from the cached twenty-three. `compliance_verification`
+with `label=not_verified` returns exactly one, `abcd-4816`, if you want a second
+filter to run.
+
+Most other labels return nothing on a corpus this small, and that is worth
+saying out loud rather than discovering live. A filter that legitimately returns
+zero rows is not a broken filter.
 
 Thresholds are applied at read time, not baked in at write time, so what counts
 as bad stays changeable.

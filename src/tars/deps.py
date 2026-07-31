@@ -49,6 +49,20 @@ def context():
     return rubric, store, judge, JobRunner(judge, rubric, store)
 
 
+def find_conversation(source: str, conversation_id: str, path: str | None = None):
+    """Locate a single conversation by id, or None.
+
+    Linear scan, because the adapters expose an iterator over a file rather than
+    an index. Building an index here would be inventing a storage layer the
+    datasets do not have, and the corpus is re-read per call — fine for one
+    lookup, the wrong shape for a hot path.
+    """
+    for convo in load_conversations(source, None, path):
+        if convo.conversation_id == conversation_id:
+            return convo
+    return None
+
+
 def load_conversations(source: str, limit: int | None, path: str | None = None):
     from .adapters import abcd, synthetic
 

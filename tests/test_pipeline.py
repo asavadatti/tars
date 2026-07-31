@@ -100,6 +100,63 @@ def test_inline_id_is_stable_for_identical_content():
     assert a.conversation_id == b.conversation_id
 
 
+def test_scoring_by_id_runs_the_same_grounding_as_the_batch_path():
+    """Regression: /v1/score used to skip grounding entirely.
+
+    Scoring a corpus conversation by id writes to the same
+    (conversation, rubric, model) row the batch path writes. If this route
+    omitted the deterministic checks, scoring an already-batched conversation
+    would silently replace a complete record with a poorer one.
+    """
+    from tars.api import InlineRequest, score_inline
+    from tars.deps import find_conversation
+
+    convo = find_conversation("synthetic", "synthetic-unverified_refund")
+    assert convo is not None, "find_conversation must resolve a known fixture id"
+
+    r = score_inline(InlineRequest(conversation_id=convo.conversation_id, source="synthetic",
+                                   force=True))
+    assert [g.name for g in r.grounded] == ["abcd_action_completion", "abcd_escalation_performed"]
+    assert all(g.passed is None for g in r.grounded), "non-ABCD source must abstain, not guess"
+
+
+def test_find_conversation_returns_none_for_unknown_id():
+    from tars.deps import find_conversation
+
+    assert find_conversation("synthetic", "synthetic-does-not-exist") is None
+
+
+def test_signal_projection_keeps_error_and_provenance():
+    """Regression: a projected result must never be less interpretable.
+
+    Failed runs are persisted with an empty `signals` map, so a projection that
+    dropped `error` would answer 200 with `{}` and give the caller no way to
+    tell "scored nothing" from "the key was rejected". Provenance goes the same
+    way — a score with no rubric or model attached cannot be compared later.
+    """
+    from tars.api import ResultSummary
+    from tars.schema import ScoredConversation, SignalResult
+
+    failed = ResultSummary.of(ScoredConversation(
+        conversation_id="c2", source="abcd", rubric_version="r1", model_version="m1",
+        error="AuthenticationError: 401 invalid x-api-key"))
+    assert failed.signals == {}
+    assert failed.error == "AuthenticationError: 401 invalid x-api-key"
+    assert (failed.rubric_version, failed.model_version) == ("r1", "m1")
+
+    scored = ResultSummary.of(ScoredConversation(
+        conversation_id="c1", source="abcd", rubric_version="r1", model_version="m1",
+        signals={
+            "cat": SignalResult(name="cat", label="completed", confidence=0.9),
+            "ord": SignalResult(name="ord", score=2.0, confidence=0.8),
+            "abs": SignalResult(name="abs", confidence=0.0, abstained=True),
+        }))
+    assert scored.signals["cat"].value == "completed", "categorical carries its label"
+    assert scored.signals["ord"].value == 2.0, "ordinal carries its score"
+    assert scored.signals["abs"].value is None and scored.signals["abs"].abstained
+    assert scored.error is None
+
+
 def test_categorical_override_counts_as_a_disagreement(tmp_path):
     """Regression: every signal in the default rubric is categorical.
 
