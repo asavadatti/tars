@@ -2,8 +2,20 @@
 
 **Transcript Analysis and Review Service.** A conversation quality reviewer.
 
-Scores customer-support transcripts against a versioned rubric and returns
-structured quality signals with the transcript evidence behind each one.
+Summary: Scores human-human customer-support transcripts against a set of customizable metrics using LLM. Returns structured quality signals with the transcript evidence behind each one
+
+Endpoints [CLI, REST, MCP:
+score: GET: /v1/score
+Score one or more conversations by passing in the conversation text or the canonical conversation id. You can also rescore a previous conversation (if the model or rubric has changed for example).
+
+You can supply the `conversation_id` to score the exact conversation or add a new conversation inline to score. The inline conversation must be in the correct JSON format.
+
+Query Params: 
+include string all|signals
+all: Returns the entire JSON response
+signals: Returns only the quality signals
+
+
 
 ## Run it
 
